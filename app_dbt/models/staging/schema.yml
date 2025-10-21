@@ -1,0 +1,15 @@
+version: 2
+
+models:
+  - name: stg_apps
+    description: "Staging table for Google Play Store app metadata, extracted from MySQL, cleaned, and configured to connect to the external database via a macro hook."
+    config:
+      materialized: table
+      # استدعاء الماكرو لتنفيذ اتصال MySQL، لتجاوز خطأ التحويل البرمجي
+      pre_hook:
+        - "{{ duckdb_mysql_connect() }}"
+
+  - name: stg_reviews
+    description: "Staging table for user reviews, extracted from the local seed file (originally from MongoDB JSON data)."
+    config:
+      materialized: table

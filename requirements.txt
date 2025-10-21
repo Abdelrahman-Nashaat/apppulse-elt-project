@@ -1,0 +1,25 @@
+# For modern Airflow on Linux/Codespaces (Python 3.11 recommended)
+apache-airflow==2.9.2
+--constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.9.2/constraints-3.11.txt"
+
+# dbt and DuckDB adapter
+dbt-duckdb==1.7.1
+
+# For data manipulation
+pandas==2.2.2
+
+# For MongoDB connection
+pymongo==4.6.1
+
+# For loading environment variables
+python-dotenv==1.0.0
+
+# For MySQL connection
+mysql-connector-python==8.2.0
+
+# For the Dashboard
+dash==2.16.1
+dash-bootstrap-components==1.5.0
+
+# Required for Docker
+docker
