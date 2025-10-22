@@ -2,16 +2,18 @@ import pandas as pd
 import mysql.connector
 from mysql.connector import Error
 import numpy as np
+import os
 
 print("--- 1. الاتصال بـ MySQL ---")
 
 try:
     connection = mysql.connector.connect(
-        host="localhost",
-        user="appuser",
-        password="apppass",
-        database="apppulse"
-    )
+    host="localhost",  # بدل mysql_db
+    user="appuser",
+    password="apppass",
+    database="apppulse"
+)
+
     if connection.is_connected():
         print("✅ تم الاتصال بنجاح بقاعدة البيانات.")
 except Error as e:
@@ -19,12 +21,13 @@ except Error as e:
     exit()
 
 # --- 2. قراءة ملف CSV ---
-csv_path = r"F:\DEPI\Materials\Project_1_data_engineer\apppulse-project\data\google_play_apps.csv"
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+csv_path = os.path.join(PROJECT_ROOT, "..", "data", "google_play_apps.csv")
 print(f"📥 جاري قراءة ملف التطبيقات من: {csv_path}...")
 
 df = pd.read_csv(csv_path)
 
-# --- 3. تنظيف الأعمدة ---
+# --- تنظيف البيانات كما عندك ---
 rename_map = {
     "Content Rating": "Content_Rating",
     "Last Updated": "Last_Updated",
@@ -32,34 +35,13 @@ rename_map = {
     "Android Ver": "Android_Ver"
 }
 df.rename(columns=rename_map, inplace=True)
-print(f"🔄 تم إعادة تسمية الأعمدة: {list(rename_map.keys())}")
-
-# --- 4. تنظيف البيانات ---
-df = df.dropna(subset=["App"])
-df = df.fillna("")
-
-# تنظيف عمود Rating (تحويل إلى رقم)
+df = df.dropna(subset=["App"]).fillna("")
 df["Rating"] = pd.to_numeric(df["Rating"], errors="coerce")
-
-# تنظيف عمود Installs
-df["Installs"] = (
-    df["Installs"]
-    .astype(str)
-    .str.replace(",", "", regex=False)
-    .str.replace("+", "", regex=False)
-    .str.strip()
-)
-
-# 🔥 استبعاد الصفوف التي فيها قيم غير رقمية في Installs (زي Free أو "")
+df["Installs"] = df["Installs"].astype(str).str.replace(",", "").str.replace("+", "").str.strip()
 df = df[df["Installs"].str.match(r"^\d+$", na=False)]
-
-# نحول Installs إلى int بعد الفلترة
 df["Installs"] = df["Installs"].astype(int)
 
-print(f"📊 الأعمدة النهائية بعد التنظيف: {list(df.columns)}")
-print(f"✅ تم قراءة وتنظيف {len(df)} صفاً.")
-
-# --- 5. إنشاء الجدول في MySQL إن لم يكن موجود ---
+# --- إنشاء الجدول وإدخال البيانات كما عندك ---
 create_table_query = """
 CREATE TABLE IF NOT EXISTS apps_raw (
     App VARCHAR(255),
@@ -81,7 +63,6 @@ cursor = connection.cursor()
 cursor.execute(create_table_query)
 connection.commit()
 
-# --- 6. إدخال البيانات في MySQL ---
 insert_query = """
 INSERT INTO apps_raw (
     App, Category, Rating, Reviews, Size, Installs, Type, Price,
@@ -91,8 +72,6 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
 df = df.replace({np.nan: None})
-print("🚀 جاري إدخال البيانات إلى قاعدة البيانات...")
-
 for _, row in df.iterrows():
     try:
         cursor.execute(insert_query, tuple(row))
@@ -101,8 +80,6 @@ for _, row in df.iterrows():
         break
 
 connection.commit()
-print("✅ تم إدخال البيانات بنجاح إلى جدول apps_raw.")
-
 cursor.close()
 connection.close()
-print("--- تم إغلاق اتصال MySQL ---")
+print("✅ تم إدخال البيانات بنجاح وأُغلق اتصال MySQL.")
