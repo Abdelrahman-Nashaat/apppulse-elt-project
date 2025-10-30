@@ -1,0 +1,7 @@
+app_dbt: # <-- Make sure this matches the profile name in dbt_project.yml
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: /workspaces/apppulse-elt-project/warehouse/apppulse.duckdb
+      # No extensions or plugins needed anymore

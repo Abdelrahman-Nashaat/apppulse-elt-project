@@ -1,19 +1,21 @@
-name: 'app_dbt'
-version: '1.0'
+# Basic dbt_project.yml configuration
+
+name: 'app_dbt' # This is usually the project name
+version: '1.0.0'
 config-version: 2
 
 # This setting configures which "profile" dbt uses for this project.
-profile: 'app_dbt'
+profile: 'app_dbt' # Make sure this matches the profile name in profiles.yml
 
 # These configurations specify where dbt should look for different types of files.
 model-paths: ["models"]
 analysis-paths: ["analyses"]
 test-paths: ["tests"]
-seed-paths: ["seeds"]
+seed-paths: ["seeds"] # Ensure dbt knows where seeds are
 macro-paths: ["macros"]
 snapshot-paths: ["snapshots"]
 
-clean-targets: # directories to be removed by `dbt clean`
+clean-targets:
   - "target"
   - "dbt_packages"
 
@@ -21,6 +23,8 @@ clean-targets: # directories to be removed by `dbt clean`
 models:
   app_dbt:
     staging:
-      # تم إزالة +pre-hook بالكامل. الآن سيقوم stg_apps.sql بربط قاعدة البيانات مباشرةً
-      # و stg_reviews.sql يقرأ من الـ Seed.
+      +materialized: table
+    analytics:
+      +materialized: table
+    example:
       +materialized: view

@@ -2,64 +2,57 @@
     materialized='table'
 ) }}
 
--- يدمج هذا النموذج البيانات من stg_apps و stg_reviews لإنشاء جدول الحقائق.
--- يتم حساب متوسط التقييمات والمشاعر (Sentiment) على مستوى التطبيق.
+-- Fact table combining app, category, and review metrics
 
-with 
+WITH apps AS (
+    SELECT
+        app_id,
+        app_name,
+        app_price,
+        content_rating,
+        android_version,
+        current_version,
+        source_unique_key
+    FROM {{ ref('dim_apps') }}
+),
 
--- 1. دمج بيانات التطبيقات مع مفاتيح الأبعاد (تم دمجها الآن في subquery 3)
+categories AS (
+    SELECT
+        app_genres,
+        app_category
+    FROM {{ ref('dim_categories') }}
+),
 
--- 2. حساب متوسط المشاعر (Sentiment) من جدول المراجعات
-review_metrics as (
-    select
-        -- تم التعديل للإشارة إلى اسم العمود app_name في stg_reviews
-        t.app_name, 
-        avg(t.polarity) as avg_sentiment_polarity 
-    from
-        {{ ref('stg_reviews') }} as t
-    where
-        t.polarity is not null 
-    group by
-        1
+reviews AS (
+    SELECT
+        app_name,
+        -- ✅ تحويل النص إلى قيمة رقمية قبل الحساب
+        AVG(
+            CASE
+                WHEN LOWER(review_sentiment) = 'positive' THEN 1.0
+                WHEN LOWER(review_sentiment) = 'neutral' THEN 0.5
+                WHEN LOWER(review_sentiment) = 'negative' THEN 0.0
+                ELSE NULL
+            END
+        ) AS avg_sentiment,
+        COUNT(*) AS total_reviews
+    FROM {{ ref('stg_reviews') }}
+    GROUP BY app_name
 )
 
--- 3. بناء جدول الحقائق النهائي
-select
-    -- المفاتيح الخارجية
-    da.app_id, -- المفتاح الخارجي لـ dim_apps
-    dc.category_id, -- المفتاح الخارجي لـ dim_categories
-    
-    -- القياسات
-    ad.average_user_rating,
-    ad.total_reviews,
-    ad.total_installs,
-    ad.app_price,
-    rm.avg_sentiment_polarity, -- متوسط المشاعر
-
-    -- بيانات إضافية (مفيدة لتحديد السياق)
-    ad.source_unique_key
-
-from
-    (
-        select
-            -- يتم توليد نفس المفتاح الذي تم استخدامه في dim_apps و dim_categories لربطهما
-            md5(cast(coalesce(cast(App as string), '_') || '_' || coalesce(cast(Category as string), '_') as string)) as source_unique_key,
-            
-            -- القياسات (Measures)
-            t.Rating as average_user_rating,
-            t.Reviews as total_reviews,
-            t.Installs as total_installs,
-            t.Price as app_price,
-            t.App as app_name -- إضافة app_name من stg_apps لمقارنته لاحقًا
-        from 
-            {{ ref('stg_apps') }} as t
-    ) as ad -- تم دمج app_data CTE في Subquery لتبسيط الكود
-
-left join
-    review_metrics as rm on ad.app_name = rm.app_name -- دمج متوسط المشاعر
-left join
-    {{ ref('dim_apps') }} as da on ad.source_unique_key = da.app_id -- دمج للحصول على app_id
-left join
-    {{ ref('dim_categories') }} as dc on ad.source_unique_key = dc.category_id -- دمج للحصول على category_id
-where
-    da.app_id is not null
+SELECT
+    a.app_id,
+    a.app_name,
+    c.app_category,
+    c.app_genres,
+    a.app_price,
+    a.content_rating,
+    a.android_version,
+    a.current_version,
+    r.avg_sentiment,
+    r.total_reviews
+FROM apps a
+LEFT JOIN categories c 
+    ON a.app_name = c.app_genres
+LEFT JOIN reviews r 
+    ON a.app_name = r.app_name
